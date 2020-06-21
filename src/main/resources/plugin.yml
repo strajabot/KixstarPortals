@@ -1,0 +1,9 @@
+name: KixstarPortals
+version: 1.0.0-SNAPSHOT
+main: me.kixstar.portals.KixstarPortals
+author: cfi2017
+api-version: '1.15'
+depend: []
+commands:
+  kixstarworlds: {}
+permissions: {}
