@@ -40,7 +40,7 @@ public class ChunkRegion {
 
         this.world = world;
 
-        //start values should be lower than endw values so for loops don't get messed up
+        //start values should be lower than end values so for loops don't get messed up
         if(startX < endX) {
             this.startX = startX;
             this.endX = endX;
@@ -127,13 +127,17 @@ public class ChunkRegion {
         return this.chunkLoadFutures;
     }
 
+    public Location getAbsPos(int relX, int relY, int relZ) {
+        return new Location(this.getWorld(),this.getStartX() + relX,  relY, this.getStartZ() + relZ);
+    }
+
     /**
      * Returns the x coordinate of a chunk relative to this.startChunkX
      *
      * returns -1 if chunk is not inside the region you specified
      *
      */
-    public int getRelX(int absX) {
+    public int getRelChunkX(int absX) {
         int relX = absX - this.startChunkX;
 
         if(absX < this.startChunkX) return -1;
@@ -148,7 +152,7 @@ public class ChunkRegion {
      * returns -1 if chunk is not inside the region you specified
      *
      */
-    public int getRelZ(int absZ) {
+    public int getRelChunkZ(int absZ) {
         int relZ = absZ - this.startChunkZ;
 
         if(absZ < this.startChunkZ) return -1;
@@ -159,24 +163,24 @@ public class ChunkRegion {
 
     private void clearChunk(@Nonnull Chunk chunk) {
 
-        int x = this.getRelX(chunk.getX());
-        int z = this.getRelZ(chunk.getZ());
+        int x = this.getRelChunkX(chunk.getX());
+        int z = this.getRelChunkZ(chunk.getZ());
 
         this.loadedChunks[x + this.widthChunks * z] = chunk;
     }
 
     private void addChunk(@Nonnull Chunk chunk) {
 
-        int x = this.getRelX(chunk.getX());
-        int z = this.getRelZ(chunk.getZ());
+        int x = this.getRelChunkX(chunk.getX());
+        int z = this.getRelChunkZ(chunk.getZ());
 
         this.loadedChunks[x + this.widthChunks * z] = chunk;
     }
 
     public Chunk getChunk(int absX, int absZ) {
 
-        int x = this.getRelX(absX);
-        int z = this.getRelZ(absZ);
+        int x = this.getRelChunkX(absX);
+        int z = this.getRelChunkZ(absZ);
 
         return this.loadedChunks[x + this.widthChunks * z];
     }

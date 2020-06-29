@@ -34,8 +34,6 @@ public class PortalLocationFinder {
     //Y coord of the block that is the lowest point of the chunk region
     private int lowSurface = 255;
 
-
-
     /*
         0 - Blacklist of materials that we can't place portals on and we can't remove if they're interfering with portals
             example: Material.BEDROCK every item that isn't on the first two is presumed blacklisted
@@ -100,8 +98,8 @@ public class PortalLocationFinder {
                     boolean canPlacePortalOn = this.canPlaceOn.contains(mat);
                     boolean canPlacePortalOver = this.canPlaceOver.contains(mat);
 
-                    int dataX = this.cr.getRelX(chunk.getX()) * 16 + x;
-                    int dataZ = this.cr.getRelZ(chunk.getZ()) * 16 + z;
+                    int dataX = this.cr.getRelChunkX(chunk.getX()) * 16 + x;
+                    int dataZ = this.cr.getRelChunkZ(chunk.getZ()) * 16 + z;
 
                     if(canPlacePortalOn && !detectedSurface) {
                         detectedSurface = true;
@@ -148,7 +146,7 @@ public class PortalLocationFinder {
         int startLayer = this.lowBound;
         if(range != 0) startLayer += (this.random.nextInt() % range);
 
-        this.setScannerHeight(startLayer);
+        this.scannerPos.setY(startLayer);
 
         //the distance that the scanner covered (used when the scanner switches direction)
         int distanceTravelled = 0;
@@ -156,7 +154,15 @@ public class PortalLocationFinder {
         //the direction in witch the scanner moved last iteration (false is down, true is up)
         boolean lastDirection = false;
 
-        for(int i = 0; i <= range; i++) {
+        Location portalPos;
+
+        //initial surface level scan
+        portalPos = this.moveAndScan(0, true);
+
+        if(portalPos != null) return portalPos;
+
+        //random direction scans on the Y axis
+        for(int i = 0; i < range; i++) {
 
             boolean nextDirection = this.random.nextBoolean();
 
@@ -166,11 +172,7 @@ public class PortalLocationFinder {
             //no portal locations were found :(
             if(this.hitHighBound && this.hitLowBound) return null;
 
-            Location portalPos;
-
-            if(distanceTravelled == 0 ) {
-              portalPos = this.moveAndScan(0, true);
-            } else if(lastDirection == nextDirection) {
+             if(lastDirection == nextDirection) {
                 portalPos = this.moveAndScan(1, nextDirection);
                 distanceTravelled++;
             } else {
@@ -180,10 +182,8 @@ public class PortalLocationFinder {
 
             if(portalPos != null) return portalPos;
 
-            //todo: search the 3D space by translating the surface lavel up and down randomly and then checking if you can fit the
         }
 
-        //todo: fix when implemented
         return null;
     }
 
@@ -196,59 +196,55 @@ public class PortalLocationFinder {
 
         this.scannerPos.setY(direction? this.scannerPos.getY() + travelDist: this.scannerPos.getY() - travelDist);
 
+        for(int x = 0; x < this.cr.getWidthBlocks(); x++) {
+            for(int z = 0; z < this.cr.getWidthBlocks(); z++) {
+                int surfaceY = this.getSurface(x,z);
 
-        for (int i = 0; i < this.surfaceBlocks.length; i++) {
-            if(direction) {
-                this.surfaceBlocks[i] += travelDist;
+                int y  = surfaceY + this.scannerPos.getBlockY();
 
-            } else {
-                this.surfaceBlocks[i] -= travelDist;
+                boolean canPlacePortal = this.checkVolume(x, y, z);
+
+                if(canPlacePortal) return this.cr.getAbsPos(x, y, z);
             }
-
-            Vector pos = this.getCoordinates(i);
-
-            boolean canPlacePortal = this.checkVolume(pos);
-            if(canPlacePortal) return new Location(this.cr.getWorld(),this.cr.getStartX() + pos.getX(),  pos.getY(), this.cr.getStartZ() + pos.getZ());
         }
-
         return null;
     }
 
-    public void setScannerHeight(int height) {
-        this.scannerPos.setY(height);
-        for (int i = 0; i < this.surfaceBlocks.length; i++) {
-            this.surfaceBlocks[i] += height;
-        }
-    }
 
-    public boolean isInLoadedChunks(Vector vec) {
+    public boolean isInLoadedChunks(int x, int y, int z) {
 
-        if(vec.getBlockX() > this.cr.getWidthBlocks()) return false;
-        if(vec.getBlockX() < 0) return false;
+        if(x >= this.cr.getWidthBlocks()) return false;
+        if(x < 0) return false;
 
-        if(vec.getBlockY() > 255) return false;
-        if(vec.getBlockY() < 0) return false;
+        if(y >= 256) return false;
+        if(y < 0) return false;
 
-        if(vec.getBlockZ() > this.cr.getDepthBlocks()) return false;
-        if(vec.getBlockZ() < 0) return false;
+        if(z >= this.cr.getDepthBlocks()) return false;
+        if(z < 0) return false;
 
         return true;
     }
 
-    //todo: this looks awful
-    public boolean checkVolume(Vector pos) {
-        for (int x = 0; x < this.schematicSize.getBlockX(); x++) {
-            for (int z = 0; z < this.schematicSize.getBlockZ(); z++) {
-                for (int y = -1; y < this.schematicSize.getBlockY(); y++) {
-                    Vector check = pos.clone();
-                    check.add(new Vector(x,y,z));
-                    if(!this.isInLoadedChunks(check)) return false;
-                    byte data = this.getData(check.getBlockX(), check.getBlockY(), check.getBlockZ());
-                    if(y == -1) {
+    public boolean checkVolume(int portalX, int portalY, int portalZ) {
+        for (int xOffset = 0; xOffset < this.schematicSize.getBlockX(); xOffset++) {
+            for (int zOffset = 0; zOffset < this.schematicSize.getBlockZ(); zOffset++) {
+                for (int yOffset = -1; yOffset < this.schematicSize.getBlockY(); yOffset++) {
+
+                    int x = portalX + xOffset;
+                    int y = portalY + yOffset;
+                    int z = portalZ + zOffset;
+
+                    if(!this.isInLoadedChunks(x, y, z)) return false;
+
+
+                    byte data = this.getData(x, y, z);
+
+                    if(yOffset == -1) {
                         if (!(data == 1 || data == 3)) return false;
                     } else  {
                         if (!(data == 2 || data == 3)) return false;
                     }
+
                 }
             }
         }
@@ -264,11 +260,11 @@ public class PortalLocationFinder {
         return this.blockGrid[x + y * this.cr.getWidthBlocks() + z * this.cr.getWidthBlocks() * 256];
     }
 
-    private void setSurface(short x, short y, short z) {
-        this.surfaceBlocks[x + this.cr.getWidthBlocks() * z] = y;
+    private void setSurface(int x, int y, int z) {
+        this.surfaceBlocks[x + this.cr.getWidthBlocks() * z] = (short) y;
     }
 
-    private short getSurface(short x, short z) {
+    private short getSurface(int x, int z) {
         return this.surfaceBlocks[x + this.cr.getWidthBlocks() * z];
     }
 
