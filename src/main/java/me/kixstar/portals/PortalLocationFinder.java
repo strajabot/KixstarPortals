@@ -30,9 +30,9 @@ public class PortalLocationFinder {
     private Vector schematicSize;
 
     //Y coord of the block that is the highest point of the chunk region
-    private int highPoint = 0;
+    private int highSurface = 0;
     //Y coord of the block that is the lowest point of the chunk region
-    private int lowPoint = 255;
+    private int lowSurface = 255;
 
 
 
@@ -66,6 +66,7 @@ public class PortalLocationFinder {
         //biased against higher numbers, probably should get replaced in future with a better solution
         this.scannerPos.setX(this.random.nextInt() % this.cr.getWidthBlocks());
         this.scannerPos.setZ(this.random.nextInt() % this.cr.getDepthBlocks());
+        this.scannerPos.setY(0);
 
     }
 
@@ -105,8 +106,8 @@ public class PortalLocationFinder {
                     if(canPlacePortalOn && !detectedSurface) {
                         detectedSurface = true;
 
-                        if(y > this.highPoint) this.highPoint = y;
-                        if(y < this.lowPoint) this.lowPoint = y;
+                        if(y > this.highSurface) this.highSurface = y;
+                        if(y < this.lowSurface) this.lowSurface = y;
 
                         this.setSurface(x, y, z);
                     }
@@ -116,6 +117,7 @@ public class PortalLocationFinder {
                     if(canPlacePortalOn && canPlacePortalOver) data = 3;
 
                     this.setData(dataX, y, dataZ, data);
+
                 }
             }
         }
@@ -138,19 +140,15 @@ public class PortalLocationFinder {
 
 
     public Location onAllChunksLoaded() {
-        int lowestPoint = this.lowPoint + this.lowBound;
-        if(lowestPoint < 0) lowestPoint = 0;
 
-        int highestPoint = this.highPoint + this.highBound;
-        if(highestPoint > 255) highestPoint = 255;
-
-        int range = highestPoint - lowestPoint;
+        int range = this.highBound - this.lowBound;
 
         //layer to start the search on (chosen randomly to remove Y bias)
 
-        int startLayer = lowestPoint;
+        int startLayer = this.lowBound;
         if(range != 0) startLayer += (this.random.nextInt() % range);
 
+        this.setScannerHeight(startLayer);
 
         //the distance that the scanner covered (used when the scanner switches direction)
         int distanceTravelled = 0;
@@ -170,10 +168,14 @@ public class PortalLocationFinder {
 
             Location portalPos;
 
-            if(lastDirection == nextDirection) {
+            if(distanceTravelled == 0 ) {
+              portalPos = this.moveAndScan(0, true);
+            } else if(lastDirection == nextDirection) {
                 portalPos = this.moveAndScan(1, nextDirection);
+                distanceTravelled++;
             } else {
                 portalPos = this.moveAndScan(distanceTravelled + 1, nextDirection);
+                distanceTravelled++;
             }
 
             if(portalPos != null) return portalPos;
@@ -188,40 +190,47 @@ public class PortalLocationFinder {
 
     //todo: fix bias towards lower coordinates using this.scannerPos
     public Location moveAndScan(int travelDist, boolean direction) {
-        this.hitHighBound = true;
-        this.hitLowBound = true;
+
+        if(this.scannerPos.getY() > this.highBound && direction) this.hitHighBound = true;
+        if(this.scannerPos.getY() < this.lowBound && !direction) this.hitLowBound = true;
+
+        this.scannerPos.setY(direction? this.scannerPos.getY() + travelDist: this.scannerPos.getY() - travelDist);
+
 
         for (int i = 0; i < this.surfaceBlocks.length; i++) {
             if(direction) {
                 this.surfaceBlocks[i] += travelDist;
+
             } else {
                 this.surfaceBlocks[i] -= travelDist;
             }
 
-            if(this.surfaceBlocks[i] < this.highBound && direction) this.hitHighBound = false;
-            if(this.surfaceBlocks[i] > this.lowBound && !direction) this.hitLowBound = false;
-
-
             Vector pos = this.getCoordinates(i);
 
             boolean canPlacePortal = this.checkVolume(pos);
-
-            if(canPlacePortal) return new Location(this.cr.getWorld(), this.cr.getStartX() + pos.getX(),  pos.getY(), this.cr.getStartZ() + pos.getZ());
+            if(canPlacePortal) return new Location(this.cr.getWorld(),this.cr.getStartX() + pos.getX(),  pos.getY(), this.cr.getStartZ() + pos.getZ());
         }
 
         return null;
     }
 
+    public void setScannerHeight(int height) {
+        this.scannerPos.setY(height);
+        for (int i = 0; i < this.surfaceBlocks.length; i++) {
+            this.surfaceBlocks[i] += height;
+        }
+    }
+
     public boolean isInLoadedChunks(Vector vec) {
 
-        if(vec.getBlockX() > this.cr.getEndX()) return false;
-        if(vec.getBlockX() < this.cr.getStartX()) return false;
+        if(vec.getBlockX() > this.cr.getWidthBlocks()) return false;
+        if(vec.getBlockX() < 0) return false;
 
         if(vec.getBlockY() > 255) return false;
         if(vec.getBlockY() < 0) return false;
 
-        if(vec.getBlockZ() > this.cr.getEndZ()) return false;
-        if(vec.getBlockZ() < this.cr.getStartZ()) return false;
+        if(vec.getBlockZ() > this.cr.getDepthBlocks()) return false;
+        if(vec.getBlockZ() < 0) return false;
 
         return true;
     }
@@ -236,9 +245,9 @@ public class PortalLocationFinder {
                     if(!this.isInLoadedChunks(check)) return false;
                     byte data = this.getData(check.getBlockX(), check.getBlockY(), check.getBlockZ());
                     if(y == -1) {
-                        if (data != 1 || data != 3) return false;
+                        if (!(data == 1 || data == 3)) return false;
                     } else  {
-                        if (data != 2 || data != 3) return false;
+                        if (!(data == 2 || data == 3)) return false;
                     }
                 }
             }
@@ -267,9 +276,8 @@ public class PortalLocationFinder {
         int x;
         int y = this.surfaceBlocks[i];
         int z = i / this.cr.getWidthBlocks();
-        x = i - z;
+        x = i - z * this.cr.getWidthBlocks();
         World world = this.cr.getWorld();
         return new Vector(x, y, z);
     }
-
 }
