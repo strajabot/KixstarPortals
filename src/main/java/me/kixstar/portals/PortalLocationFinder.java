@@ -4,8 +4,7 @@ import org.bukkit.*;
 import org.bukkit.util.Vector;
 
 import javax.annotation.Nonnull;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
 
@@ -34,6 +33,7 @@ public class PortalLocationFinder {
     //Y coord of the block that is the lowest point of the chunk region
     private int lowSurface = 255;
 
+
     /*
         0 - Blacklist of materials that we can't place portals on and we can't remove if they're interfering with portals
             example: Material.BEDROCK every item that isn't on the first two is presumed blacklisted
@@ -50,6 +50,8 @@ public class PortalLocationFinder {
 
     short[] surfaceBlocks;
 
+    private int[][] searchQueue;
+
     public PortalLocationFinder(@Nonnull ChunkRegion region) {
         if(region == null) throw new RuntimeException("\"world\" can't be null");
 
@@ -62,10 +64,32 @@ public class PortalLocationFinder {
         this.random = new Random();
 
         //biased against higher numbers, probably should get replaced in future with a better solution
-        this.scannerPos.setX(this.random.nextInt() % this.cr.getWidthBlocks());
-        this.scannerPos.setZ(this.random.nextInt() % this.cr.getDepthBlocks());
         this.scannerPos.setY(0);
 
+    }
+
+
+    public void genSearchQueue() {
+        /* first we fill the array with indexes of this.surfaceBlocks, then we shuffle it
+        *  and use the searchQueue when checking for portal location so that the search algorithm is randomized
+        * this is randomized for every Portal location search
+        * */
+        this.searchQueue = new int[this.cr.getAreaBlocks()][2];
+
+        int width = this.cr.getWidthBlocks();
+
+        for(int x = 0; x < this.cr.getWidthBlocks(); x++) {
+            for(int z = 0; z < this.cr.getDepthBlocks(); z++) {
+                this.searchQueue[x + width * z] = new int[]{x, z};
+            }
+        }
+
+        for (int i = 0; i < this.searchQueue.length; i++) {
+            int randomIndexToSwap = this.random.nextInt(this.searchQueue.length);
+            int[] temp = this.searchQueue[randomIndexToSwap];
+            this.searchQueue[randomIndexToSwap] = this.searchQueue[i];
+            this.searchQueue[i] = temp;
+        }
     }
 
     public void setCanPlaceOn(List<Material> canPlaceOn) {
@@ -129,6 +153,7 @@ public class PortalLocationFinder {
             chunkLoadFuture.thenApply(this::parseChunks);
         }
 
+        this.genSearchQueue();
         //this blocks
         CompletableFuture.allOf(chunkLoadFutures).join();
 
@@ -187,8 +212,7 @@ public class PortalLocationFinder {
         return null;
     }
 
-
-    //todo: fix bias towards lower coordinates using this.scannerPos
+    
     public Location moveAndScan(int travelDist, boolean direction) {
 
         if(this.scannerPos.getY() > this.highBound && direction) this.hitHighBound = true;
@@ -196,8 +220,11 @@ public class PortalLocationFinder {
 
         this.scannerPos.setY(direction? this.scannerPos.getY() + travelDist: this.scannerPos.getY() - travelDist);
 
-        for(int x = 0; x < this.cr.getWidthBlocks(); x++) {
-            for(int z = 0; z < this.cr.getWidthBlocks(); z++) {
+        for(int i = 0; i < this.searchQueue.length; i++) {
+
+                int x = this.searchQueue[i][0];
+                int z = this.searchQueue[i][1];
+
                 int surfaceY = this.getSurface(x,z);
 
                 int y  = surfaceY + this.scannerPos.getBlockY();
@@ -205,7 +232,7 @@ public class PortalLocationFinder {
                 boolean canPlacePortal = this.checkVolume(x, y, z);
 
                 if(canPlacePortal) return this.cr.getAbsPos(x, y, z);
-            }
+
         }
         return null;
     }
@@ -268,12 +295,11 @@ public class PortalLocationFinder {
         return this.surfaceBlocks[x + this.cr.getWidthBlocks() * z];
     }
 
-    public Vector getCoordinates(int i) {
+    public int[] getCoordinates(int i) {
         int x;
-        int y = this.surfaceBlocks[i];
         int z = i / this.cr.getWidthBlocks();
         x = i - z * this.cr.getWidthBlocks();
-        World world = this.cr.getWorld();
-        return new Vector(x, y, z);
+
+        return new int[]{x, z};
     }
 }
