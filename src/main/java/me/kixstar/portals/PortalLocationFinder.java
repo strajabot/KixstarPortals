@@ -212,7 +212,7 @@ public class PortalLocationFinder {
         return null;
     }
 
-    
+
     public Location moveAndScan(int travelDist, boolean direction) {
 
         if(this.scannerPos.getY() > this.highBound && direction) this.hitHighBound = true;

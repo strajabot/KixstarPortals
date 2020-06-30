@@ -16,6 +16,6 @@ public class TestPortalFinder extends PortalLocationFinder {
         this.setCanPlaceOn(Arrays.asList(new Material[]{Material.GRASS_BLOCK,}));
         this.setCanPlaceOver(Arrays.asList(new Material[]{Material.AIR, Material.OAK_LEAVES}));
         this.setSchematicSize(new Vector(3,3,3));
-        player.teleport(this.findPortalLocation());
+
     }
 }
