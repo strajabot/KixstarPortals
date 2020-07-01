@@ -16,10 +16,6 @@ import com.sk89q.worldedit.world.World;
 import me.kixstar.portals.database.KixtarDB;
 import org.bukkit.Location;
 
-import java.io.IOException;
-import java.util.UUID;
-
-
 public class PortalSpawner {
 
     Clipboard portal;
@@ -45,19 +41,11 @@ public class PortalSpawner {
                 spawnPos.getZ()
         );
 
-        ClipboardFormat format = BuiltInClipboardFormat.MINECRAFT_STRUCTURE;
-
-        try (ClipboardReader reader = format.getReader(KixtarDB.getPortalSchematic(portalDBHandle))) {
-            //null exception in reader, maybe my test schematic is invalid.
-            this.portal = reader.read();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        this.portal = KixtarDB.getPortalSchematic(portalDBHandle);
 
     }
 
     public void saveBlocks() {
-
 
         /* it seems that when you add the dimensions of a portal to the start point
          * that the region is one block wider in every axis.
@@ -93,16 +81,7 @@ public class PortalSpawner {
     }
 
     public void resetBlocks() {
-
-        ClipboardFormat format = BuiltInClipboardFormat.MINECRAFT_STRUCTURE;
-        try (ClipboardReader reader = format.getReader(KixtarDB.getOldBlocks(this.oldBlocksUUID))) {
-            Clipboard oldBlocks = reader.read();
-            this.pasteClipboard(oldBlocks);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
-
+        this.pasteClipboard(KixtarDB.getOldBlocks(this.oldBlocksUUID));
     }
 
     private void pasteClipboard(Clipboard clipboard) {
