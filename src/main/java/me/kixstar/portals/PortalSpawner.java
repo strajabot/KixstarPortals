@@ -5,7 +5,6 @@ import com.sk89q.worldedit.EditSession;
 import com.sk89q.worldedit.bukkit.BukkitWorld;
 import com.sk89q.worldedit.extent.clipboard.BlockArrayClipboard;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
-import com.sk89q.worldedit.extent.clipboard.io.*;
 import com.sk89q.worldedit.function.operation.ForwardExtentCopy;
 import com.sk89q.worldedit.function.operation.Operation;
 import com.sk89q.worldedit.function.operation.Operations;
@@ -13,7 +12,7 @@ import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.regions.CuboidRegion;
 import com.sk89q.worldedit.session.ClipboardHolder;
 import com.sk89q.worldedit.world.World;
-import me.kixstar.portals.database.KixtarDB;
+import me.kixstar.portals.database.KixstarDB;
 import org.bukkit.Location;
 
 public class PortalSpawner {
@@ -26,9 +25,10 @@ public class PortalSpawner {
 
     World world;
 
+    boolean destroyTrees = false;
 
 
-    public PortalSpawner(Location spawnPos, String portalDBHandle, String oldBlocksUUID) {
+    public PortalSpawner(Location spawnPos, String portalID, String oldBlocksUUID) {
 
 
         this.world = new BukkitWorld(spawnPos.getWorld());
@@ -41,7 +41,7 @@ public class PortalSpawner {
                 spawnPos.getZ()
         );
 
-        this.portal = KixtarDB.getPortalSchematic(portalDBHandle);
+        this.portal = KixstarDB.readPortalSchematic(portalID);
 
     }
 
@@ -64,11 +64,29 @@ public class PortalSpawner {
             Operations.complete(forwardExtentCopy);
         }
 
-        KixtarDB.writeOldBlocks(this.oldBlocksUUID, clipboard);
+        KixstarDB.writeOldBlocks(this.oldBlocksUUID, clipboard);
 
 
     }
 
+    /*
+    public void setDestroyTrees(boolean destroyTrees) {
+        this.destroyTrees = destroyTrees;
+    }
+    */
+    /*
+    private void removeTree(Block block) {
+        if(block.getType().equals(Material.LOG) || block.getType().equals(Material.LEAVES)) {
+            block.setType(Material.AIR);
+            removeTree(block.getRelative(BlockFace.DOWN));
+            removeTree(block.getRelative(BlockFace.UP));
+            removeTree(block.getRelative(BlockFace.NORTH));
+            removeTree(block.getRelative(BlockFace.SOUTH));
+            removeTree(block.getRelative(BlockFace.EAST));
+            removeTree(block.getRelative(BlockFace.WEST));
+        }
+    }
+    */
 
     //todo: test if this works
     public void placePortal() {
@@ -80,9 +98,12 @@ public class PortalSpawner {
 
     }
 
+
+
     public void resetBlocks() {
-        this.pasteClipboard(KixtarDB.getOldBlocks(this.oldBlocksUUID));
+        this.pasteClipboard(KixstarDB.readOldBlocks(this.oldBlocksUUID));
     }
+
 
     private void pasteClipboard(Clipboard clipboard) {
 
